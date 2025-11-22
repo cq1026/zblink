@@ -1,62 +1,51 @@
 # Zeabur Manager
 
-部署在 Cloudflare Pages 上的 Web 应用，用于管理多个 Zeabur 云服务。
+Cloudflare Workers 应用，用于管理 Zeabur 云服务，支持自动 Keepalive 防止服务被删除。
 
 ## 功能
 
-- 支持多个服务管理
-- 重启/启动/停止/部署服务
-- 密码保护所有操作
-- 深色主题界面
-- 操作日志记录
+- 重启/停止服务
+- 密码保护
+- **自动 Keepalive**：停止超过 20 天的服务自动重启后再暂停
 
 ## 部署
 
-### 1. 在 Cloudflare Pages 创建项目
+### 1. 创建 KV 命名空间
 
-1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com/)
-2. Workers & Pages → 创建应用程序 → Pages
-3. 连接 Git 仓库
+```bash
+npx wrangler kv:namespace create "KV"
+```
 
-### 2. 配置构建
+复制输出的 ID，替换 `wrangler.toml` 中的 `YOUR_KV_NAMESPACE_ID`
 
-- **构建命令**: 留空
-- **构建输出目录**: `src`
+### 2. 配置环境变量
 
-### 3. 配置环境变量
+```bash
+npx wrangler secret put AUTH_PASSWORD
+npx wrangler secret put ZEABUR_API_TOKEN
+npx wrangler secret put SERVICES
+```
+
+`SERVICES` 格式：
+```json
+[{"key":"blog","name":"博客","serviceId":"xxx","environmentId":"xxx"}]
+```
+
+### 3. 部署
+
+```bash
+npx wrangler deploy
+```
+
+## 环境变量
 
 | 变量名 | 说明 |
 |--------|------|
 | `AUTH_PASSWORD` | 操作密码 |
 | `ZEABUR_API_TOKEN` | Zeabur API Token |
-| `SERVICES` | 服务配置（JSON 格式） |
+| `SERVICES` | 服务配置（JSON） |
 
-### 4. SERVICES 格式
-
-```json
-[
-  {
-    "key": "blog",
-    "name": "博客服务",
-    "serviceId": "你的服务ID",
-    "environmentId": "你的环境ID"
-  },
-  {
-    "key": "api",
-    "name": "API 服务",
-    "serviceId": "另一个服务ID",
-    "environmentId": "另一个环境ID"
-  }
-]
-```
-
-**字段说明**：
-- `key`: 唯一标识符（不会暴露给前端的 ID）
-- `name`: 显示名称
-- `serviceId`: Zeabur 服务 ID
-- `environmentId`: Zeabur 环境 ID
-
-### 5. 获取 Zeabur ID
+## 获取 Zeabur ID
 
 1. **API Token**: [Zeabur 开发者设置](https://dash.zeabur.com/account/developer)
 
@@ -65,21 +54,30 @@
    https://dash.zeabur.com/projects/{PROJECT_ID}/services/{SERVICE_ID}?environmentID={ENVIRONMENT_ID}
    ```
 
+## Keepalive 机制
+
+- 每天 UTC 00:00 自动检查
+- 停止超过 20 天的服务会自动：重启 → 等待 30 秒 → 暂停
+- 无需手动干预
+
 ## 本地开发
 
 ```bash
-# 创建配置文件
+# 创建 .dev.vars 文件
 cp .dev.vars.example .dev.vars
 
-# 编辑 .dev.vars 填入配置
-
-# 运行开发服务器
-npx wrangler pages dev src
+# 运行
+npx wrangler dev
 ```
 
-## 安全性
+## 项目结构
 
-- 所有操作需要密码验证
-- 敏感信息（Token、ID）存储在 Cloudflare 环境变量
-- 前端只能获取服务的 key 和 name
-- serviceId、environmentId 不会暴露给浏览器
+```
+├── worker.js        # Workers 主代码
+├── wrangler.toml    # 配置文件
+├── src/             # 前端文件
+│   ├── index.html
+│   ├── style.css
+│   └── app.js
+└── README.md
+```

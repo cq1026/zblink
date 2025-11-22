@@ -1,0 +1,16 @@
+name = "zblink"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# Static assets
+[assets]
+directory = "./src"
+
+# KV namespace binding
+[[kv_namespaces]]
+binding = "KV"
+id = "YOUR_KV_NAMESPACE_ID"
+
+# Cron trigger - runs daily at 00:00 UTC
+[triggers]
+crons = ["0 0 * * *"]
