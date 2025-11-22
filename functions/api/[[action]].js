@@ -8,19 +8,9 @@ const mutations = {
             restartService(serviceID: $serviceId, environmentID: $environmentId)
         }
     `,
-    start: `
-        mutation ResumeService($serviceId: ObjectID!, $environmentId: ObjectID!) {
-            resumeService(serviceID: $serviceId, environmentID: $environmentId)
-        }
-    `,
     stop: `
         mutation SuspendService($serviceId: ObjectID!, $environmentId: ObjectID!) {
             suspendService(serviceID: $serviceId, environmentID: $environmentId)
-        }
-    `,
-    redeploy: `
-        mutation RedeployService($serviceId: ObjectID!, $environmentId: ObjectID!) {
-            redeployService(serviceID: $serviceId, environmentID: $environmentId)
         }
     `
 };
@@ -37,7 +27,7 @@ export async function onRequestPost(context) {
     // Validate action
     if (!mutations[action]) {
         return new Response(
-            JSON.stringify({ success: false, error: '无效的操作' }),
+            JSON.stringify({ success: false, error: 'Invalid action' }),
             { status: 400, headers }
         );
     }
@@ -57,7 +47,7 @@ export async function onRequestPost(context) {
         // Check required environment variables
         if (!env.ZEABUR_API_TOKEN || !env.SERVICES) {
             return new Response(
-                JSON.stringify({ success: false, error: '服务配置错误' }),
+                JSON.stringify({ success: false, error: 'Service configuration error' }),
                 { status: 500, headers }
             );
         }
@@ -68,7 +58,7 @@ export async function onRequestPost(context) {
 
         if (!service) {
             return new Response(
-                JSON.stringify({ success: false, error: '未找到服务' }),
+                JSON.stringify({ success: false, error: 'Service not found' }),
                 { status: 404, headers }
             );
         }
@@ -96,7 +86,7 @@ export async function onRequestPost(context) {
             return new Response(
                 JSON.stringify({
                     success: false,
-                    error: result.errors[0]?.message || 'API 调用失败'
+                    error: result.errors[0]?.message || 'API call failed'
                 }),
                 { status: 500, headers }
             );
@@ -110,7 +100,7 @@ export async function onRequestPost(context) {
     } catch (error) {
         console.error('Error:', error);
         return new Response(
-            JSON.stringify({ success: false, error: '服务器错误' }),
+            JSON.stringify({ success: false, error: 'Server error' }),
             { status: 500, headers }
         );
     }
