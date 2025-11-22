@@ -1,9 +1,5 @@
-# Copy this file to .dev.vars for local development
-# DO NOT commit .dev.vars to git
+# Copy to .dev.vars for local development
 
-AUTH_PASSWORD=your_secure_password
-ZEABUR_API_TOKEN=your_zeabur_api_token
-
-# Services configuration (JSON array)
-# Each service needs: key (unique identifier), name (display name), serviceId, environmentId
-SERVICES=[{"key":"service1","name":"我的服务1","serviceId":"xxx","environmentId":"xxx"},{"key":"service2","name":"我的服务2","serviceId":"xxx","environmentId":"xxx"}]
+AUTH_PASSWORD=your_password
+ZEABUR_API_TOKEN=your_token
+SERVICES=[{"key":"blog","name":"博客","serviceId":"xxx","environmentId":"xxx"}]

@@ -1,10 +1,12 @@
 let currentAction = null;
 let currentServiceKey = null;
+let currentServiceName = null;
 
-// Load services on page load
 document.addEventListener('DOMContentLoaded', loadServices);
 
 async function loadServices() {
+    const container = document.getElementById('services-container');
+
     try {
         const response = await fetch('/api/services');
         const result = await response.json();
@@ -12,10 +14,10 @@ async function loadServices() {
         if (result.success && result.services) {
             renderServices(result.services);
         } else {
-            showError('加载服务列表失败');
+            container.innerHTML = '<div class="error-state">Failed to load services</div>';
         }
     } catch (error) {
-        showError('网络错误，无法加载服务');
+        container.innerHTML = '<div class="error-state">Network error</div>';
     }
 }
 
@@ -23,85 +25,86 @@ function renderServices(services) {
     const container = document.getElementById('services-container');
 
     if (services.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 40px;">未配置任何服务</p>';
+        container.innerHTML = `
+            <div class="empty-state">
+                <span class="empty-icon">📦</span>
+                <p>No services configured</p>
+            </div>
+        `;
         return;
     }
 
     container.innerHTML = services.map(service => `
         <div class="service-card">
             <div class="service-header">
-                <div>
-                    <div class="service-name">${service.name}</div>
-                    <div class="service-id">${service.key}</div>
+                <div class="service-info">
+                    <div class="service-name">${escapeHtml(service.name)}</div>
+                    <div class="service-key">${escapeHtml(service.key)}</div>
                 </div>
-            </div>
-            <div class="service-actions">
-                <button class="btn btn-restart" onclick="confirmAction('restart', '${service.key}', '${service.name}')">
-                    重启
-                </button>
-                <button class="btn btn-start" onclick="confirmAction('start', '${service.key}', '${service.name}')">
-                    启动
-                </button>
-                <button class="btn btn-stop" onclick="confirmAction('stop', '${service.key}', '${service.name}')">
-                    停止
-                </button>
-                <button class="btn btn-redeploy" onclick="confirmAction('redeploy', '${service.key}', '${service.name}')">
-                    部署
-                </button>
+                <div class="service-actions">
+                    <button class="btn btn-restart" onclick="confirmAction('restart', '${escapeHtml(service.key)}', '${escapeHtml(service.name)}')">
+                        Restart
+                    </button>
+                    <button class="btn btn-stop" onclick="confirmAction('stop', '${escapeHtml(service.key)}', '${escapeHtml(service.name)}')">
+                        Stop
+                    </button>
+                </div>
             </div>
         </div>
     `).join('');
 }
 
-function showError(message) {
-    const container = document.getElementById('services-container');
-    container.innerHTML = `<p style="text-align: center; color: var(--danger); padding: 40px;">${message}</p>`;
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 function confirmAction(action, serviceKey, serviceName) {
     currentAction = action;
     currentServiceKey = serviceKey;
+    currentServiceName = serviceName;
 
     const actionNames = {
-        restart: '重启',
-        start: '启动',
-        stop: '停止',
-        redeploy: '部署'
+        restart: 'Restart',
+        stop: 'Stop'
     };
 
-    document.getElementById('modal-title').textContent = `${actionNames[action]} ${serviceName}`;
-    document.getElementById('modal-message').textContent = `请输入密码以确认${actionNames[action]}操作`;
+    document.getElementById('modal-title').textContent = `${actionNames[action]} Service`;
+    document.getElementById('modal-message').textContent = `Confirm ${actionNames[action].toLowerCase()} for "${serviceName}"`;
     document.getElementById('password-input').value = '';
     document.getElementById('modal-error').textContent = '';
     document.getElementById('password-modal').classList.add('active');
-    document.getElementById('password-input').focus();
+
+    setTimeout(() => {
+        document.getElementById('password-input').focus();
+    }, 100);
 }
 
 function closeModal() {
     document.getElementById('password-modal').classList.remove('active');
     currentAction = null;
     currentServiceKey = null;
+    currentServiceName = null;
 }
 
 async function executeAction() {
     const password = document.getElementById('password-input').value;
     const errorEl = document.getElementById('modal-error');
+    const confirmBtn = document.getElementById('confirm-btn');
 
     if (!password) {
-        errorEl.textContent = '请输入密码';
+        errorEl.textContent = 'Please enter password';
         return;
     }
 
-    const confirmBtn = document.querySelector('.btn-confirm');
+    confirmBtn.classList.add('loading');
     confirmBtn.disabled = true;
-    confirmBtn.textContent = '执行中...';
     errorEl.textContent = '';
 
     const actionNames = {
-        restart: '重启',
-        start: '启动',
-        stop: '停止',
-        redeploy: '部署'
+        restart: 'Restart',
+        stop: 'Stop'
     };
 
     try {
@@ -119,41 +122,48 @@ async function executeAction() {
         const result = await response.json();
 
         if (response.ok && result.success) {
-            addLog('success', currentServiceKey, `${actionNames[currentAction]}成功`);
+            addLog('success', currentServiceName, `${actionNames[currentAction]} successful`);
             closeModal();
         } else {
-            errorEl.textContent = result.error || '操作失败';
+            errorEl.textContent = result.error || 'Operation failed';
             if (result.error === '密码错误') {
+                errorEl.textContent = 'Invalid password';
                 document.getElementById('password-input').value = '';
                 document.getElementById('password-input').focus();
             }
         }
     } catch (error) {
-        errorEl.textContent = '网络错误，请重试';
-        addLog('error', currentServiceKey, `${actionNames[currentAction]}失败: 网络错误`);
+        errorEl.textContent = 'Network error';
+        addLog('error', currentServiceName, `${actionNames[currentAction]} failed`);
     } finally {
+        confirmBtn.classList.remove('loading');
         confirmBtn.disabled = false;
-        confirmBtn.textContent = '确认';
     }
 }
 
 function addLog(type, serviceName, message) {
     const container = document.getElementById('log-container');
-    const emptyMsg = container.querySelector('.log-empty');
-    if (emptyMsg) {
-        emptyMsg.remove();
+    const emptyState = container.querySelector('.empty-state');
+    if (emptyState) {
+        emptyState.remove();
     }
 
     const entry = document.createElement('div');
     entry.className = `log-entry log-${type}`;
 
-    const time = new Date().toLocaleTimeString('zh-CN');
+    const now = new Date();
+    const time = now.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    });
+
     entry.innerHTML = `
         <div class="log-header">
-            <span class="log-service">${serviceName}</span>
+            <span class="log-service">${escapeHtml(serviceName)}</span>
             <span class="log-time">${time}</span>
         </div>
-        <div class="log-message">${message}</div>
+        <div class="log-message">${escapeHtml(message)}</div>
     `;
 
     container.insertBefore(entry, container.firstChild);
@@ -161,7 +171,12 @@ function addLog(type, serviceName, message) {
 
 function clearLogs() {
     const container = document.getElementById('log-container');
-    container.innerHTML = '<p class="log-empty">暂无操作记录</p>';
+    container.innerHTML = `
+        <div class="empty-state">
+            <span class="empty-icon">📋</span>
+            <p>No recent activity</p>
+        </div>
+    `;
 }
 
 // Event listeners

@@ -4,44 +4,57 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zeabur Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Zeabur Manager</h1>
-        </header>
+    <div class="app">
+        <nav class="navbar">
+            <div class="logo">
+                <span class="logo-icon">Z</span>
+                <span class="logo-text">Zeabur Manager</span>
+            </div>
+        </nav>
 
-        <main>
-            <div id="services-container">
+        <main class="main">
+            <div class="services-grid" id="services-container">
                 <!-- Services will be rendered here -->
             </div>
 
-            <section class="logs-section">
-                <div class="section-header">
-                    <h2>操作日志</h2>
-                    <button class="btn-text" onclick="clearLogs()">清空</button>
+            <section class="logs-panel">
+                <div class="panel-header">
+                    <h2>Activity</h2>
+                    <button class="btn-ghost" onclick="clearLogs()">Clear</button>
                 </div>
-                <div id="log-container">
-                    <p class="log-empty">暂无操作记录</p>
+                <div class="logs-list" id="log-container">
+                    <div class="empty-state">
+                        <span class="empty-icon">📋</span>
+                        <p>No recent activity</p>
+                    </div>
                 </div>
             </section>
         </main>
     </div>
 
     <!-- Password Modal -->
-    <div id="password-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="modal-title">确认操作</h3>
-                <button class="modal-close" onclick="closeModal()">&times;</button>
+    <div id="password-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-icon" id="modal-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+                </svg>
             </div>
-            <p id="modal-message">请输入密码以确认操作</p>
-            <input type="password" id="password-input" placeholder="输入密码" autocomplete="off">
-            <p id="modal-error" class="error-message"></p>
+            <h3 id="modal-title">Confirm Action</h3>
+            <p id="modal-message">Enter password to continue</p>
+            <div class="input-group">
+                <input type="password" id="password-input" placeholder="Password" autocomplete="off">
+                <p id="modal-error" class="error-text"></p>
+            </div>
             <div class="modal-actions">
-                <button class="btn btn-cancel" onclick="closeModal()">取消</button>
-                <button class="btn btn-confirm" onclick="executeAction()">确认</button>
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" id="confirm-btn" onclick="executeAction()">Confirm</button>
             </div>
         </div>
     </div>
