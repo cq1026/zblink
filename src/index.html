@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zeabur Service Manager</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Zeabur Service Manager</h1>
+            <p class="subtitle">服务管理控制台</p>
+        </header>
+
+        <main>
+            <section class="actions">
+                <h2>服务操作</h2>
+                <div class="button-grid">
+                    <button class="btn btn-primary" onclick="confirmAction('restart', '重启服务')">
+                        <span class="icon">🔄</span>
+                        重启服务
+                    </button>
+                    <button class="btn btn-success" onclick="confirmAction('start', '启动服务')">
+                        <span class="icon">▶️</span>
+                        启动服务
+                    </button>
+                    <button class="btn btn-warning" onclick="confirmAction('stop', '停止服务')">
+                        <span class="icon">⏹️</span>
+                        停止服务
+                    </button>
+                    <button class="btn btn-info" onclick="confirmAction('redeploy', '重新部署')">
+                        <span class="icon">🚀</span>
+                        重新部署
+                    </button>
+                </div>
+            </section>
+
+            <section class="logs">
+                <h2>操作日志</h2>
+                <div id="log-container">
+                    <p class="log-empty">暂无操作记录</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Password Modal -->
+    <div id="password-modal" class="modal">
+        <div class="modal-content">
+            <h3 id="modal-title">确认操作</h3>
+            <p id="modal-message">请输入密码以确认操作</p>
+            <input type="password" id="password-input" placeholder="输入密码" autocomplete="off">
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+                <button class="btn btn-primary" onclick="executeAction()">确认</button>
+            </div>
+            <p id="modal-error" class="error-message"></p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

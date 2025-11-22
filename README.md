@@ -1,95 +1,101 @@
-# Zeabur API Client
+# Zeabur Service Manager
 
-A Python CLI tool for managing Zeabur services via their GraphQL API.
+一个部署在 Cloudflare Pages 上的 Web 应用，用于管理 Zeabur 云服务。
 
-## Features
+## 功能
 
-- List projects and services
-- Restart/Stop/Start services
-- Redeploy services
-- Execute commands on services
-- View runtime logs
+- 重启服务
+- 启动/停止服务
+- 重新部署服务
+- 密码保护所有操作
+- 操作日志记录
 
-## Installation
+## 部署到 Cloudflare Pages
+
+### 1. Fork 或克隆此仓库
+
+### 2. 在 Cloudflare Dashboard 创建 Pages 项目
+
+1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com/)
+2. 进入 Workers & Pages
+3. 创建应用程序 → Pages → 连接到 Git
+4. 选择此仓库
+
+### 3. 配置构建设置
+
+- **构建命令**: 留空
+- **构建输出目录**: `src`
+
+### 4. 配置环境变量
+
+在 Cloudflare Pages 项目设置中添加以下环境变量：
+
+| 变量名 | 说明 |
+|--------|------|
+| `AUTH_PASSWORD` | 操作密码（用于验证） |
+| `ZEABUR_API_TOKEN` | Zeabur API Token |
+| `ZEABUR_SERVICE_ID` | 服务 ID |
+| `ZEABUR_ENVIRONMENT_ID` | 环境 ID |
+
+### 5. 获取 Zeabur 配置信息
+
+1. **API Token**: 在 [Zeabur 开发者设置](https://dash.zeabur.com/account/developer) 获取
+
+2. **Service ID 和 Environment ID**:
+   - 打开 Zeabur 控制台
+   - 进入你的项目和服务
+   - 从 URL 中获取：`https://dash.zeabur.com/projects/{PROJECT_ID}/services/{SERVICE_ID}?environmentID={ENVIRONMENT_ID}`
+
+## 本地开发
+
+### 安装 Wrangler
 
 ```bash
-pip install -r requirements.txt
+npm install -g wrangler
 ```
 
-## Configuration
+### 配置本地环境变量
 
-1. Get your API token from [Zeabur Developer Settings](https://dash.zeabur.com/account/developer)
+创建 `.dev.vars` 文件：
 
-2. Create a `.env` file:
-```bash
-cp .env.example .env
+```
+AUTH_PASSWORD=your_password
+ZEABUR_API_TOKEN=your_token
+ZEABUR_SERVICE_ID=your_service_id
+ZEABUR_ENVIRONMENT_ID=your_environment_id
 ```
 
-3. Add your token to `.env`:
-```
-ZEABUR_API_TOKEN=your_api_token_here
-```
-
-## Usage
-
-### View User Info
-```bash
-python cli.py me
-```
-
-### List Projects
-```bash
-python cli.py projects
-```
-
-### Show Project Details
-```bash
-python cli.py project <project_id>
-```
-
-### Service Management
+### 运行本地开发服务器
 
 ```bash
-# Restart service
-python cli.py restart <service_id> <environment_id>
-
-# Stop service
-python cli.py stop <service_id> <environment_id>
-
-# Start service
-python cli.py start <service_id> <environment_id>
-
-# Redeploy service
-python cli.py redeploy <service_id> <environment_id>
+npx wrangler pages dev src
 ```
 
-### Execute Commands
-```bash
-python cli.py exec <service_id> <environment_id> ls -la
+## 项目结构
+
+```
+├── src/
+│   ├── index.html    # 前端页面
+│   ├── style.css     # 样式
+│   └── app.js        # 前端逻辑
+├── functions/
+│   └── api/
+│       └── [[action]].js  # API 端点
+└── README.md
 ```
 
-### View Logs
-```bash
-python cli.py logs <project_id> <service_id> <environment_id> --limit 100
-```
+## 安全说明
 
-## Finding IDs
+- 所有操作都需要输入密码验证
+- 密码存储在 Cloudflare 环境变量中，不会暴露给前端
+- API Token 等敏感信息也存储在环境变量中
+- 建议使用强密码
 
-1. Run `python cli.py projects` to get project IDs
-2. Run `python cli.py project <project_id>` to get service and environment IDs
+## API 端点
 
-## API Reference
+- `POST /api/restart` - 重启服务
+- `POST /api/start` - 启动服务
+- `POST /api/stop` - 停止服务
+- `POST /api/redeploy` - 重新部署
 
-You can also use `ZeaburClient` directly in Python:
-
-```python
-from zeabur_client import ZeaburClient
-
-client = ZeaburClient("your_api_token")
-
-# List projects
-projects = client.list_projects()
-
-# Restart a service
-client.restart_service(service_id, environment_id)
-```
+所有端点需要在请求体中包含 `{ "password": "your_password" }`

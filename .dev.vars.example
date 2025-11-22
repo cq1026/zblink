@@ -1,0 +1,7 @@
+# Copy this file to .dev.vars for local development
+# DO NOT commit .dev.vars to git
+
+AUTH_PASSWORD=your_secure_password
+ZEABUR_API_TOKEN=your_zeabur_api_token
+ZEABUR_SERVICE_ID=your_service_id
+ZEABUR_ENVIRONMENT_ID=your_environment_id
