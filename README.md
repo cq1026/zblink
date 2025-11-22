@@ -1,101 +1,85 @@
-# Zeabur Service Manager
+# Zeabur Manager
 
-一个部署在 Cloudflare Pages 上的 Web 应用，用于管理 Zeabur 云服务。
+部署在 Cloudflare Pages 上的 Web 应用，用于管理多个 Zeabur 云服务。
 
 ## 功能
 
-- 重启服务
-- 启动/停止服务
-- 重新部署服务
+- 支持多个服务管理
+- 重启/启动/停止/部署服务
 - 密码保护所有操作
+- 深色主题界面
 - 操作日志记录
 
-## 部署到 Cloudflare Pages
+## 部署
 
-### 1. Fork 或克隆此仓库
-
-### 2. 在 Cloudflare Dashboard 创建 Pages 项目
+### 1. 在 Cloudflare Pages 创建项目
 
 1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com/)
-2. 进入 Workers & Pages
-3. 创建应用程序 → Pages → 连接到 Git
-4. 选择此仓库
+2. Workers & Pages → 创建应用程序 → Pages
+3. 连接 Git 仓库
 
-### 3. 配置构建设置
+### 2. 配置构建
 
 - **构建命令**: 留空
 - **构建输出目录**: `src`
 
-### 4. 配置环境变量
-
-在 Cloudflare Pages 项目设置中添加以下环境变量：
+### 3. 配置环境变量
 
 | 变量名 | 说明 |
 |--------|------|
-| `AUTH_PASSWORD` | 操作密码（用于验证） |
+| `AUTH_PASSWORD` | 操作密码 |
 | `ZEABUR_API_TOKEN` | Zeabur API Token |
-| `ZEABUR_SERVICE_ID` | 服务 ID |
-| `ZEABUR_ENVIRONMENT_ID` | 环境 ID |
+| `SERVICES` | 服务配置（JSON 格式） |
 
-### 5. 获取 Zeabur 配置信息
+### 4. SERVICES 格式
 
-1. **API Token**: 在 [Zeabur 开发者设置](https://dash.zeabur.com/account/developer) 获取
+```json
+[
+  {
+    "key": "blog",
+    "name": "博客服务",
+    "serviceId": "你的服务ID",
+    "environmentId": "你的环境ID"
+  },
+  {
+    "key": "api",
+    "name": "API 服务",
+    "serviceId": "另一个服务ID",
+    "environmentId": "另一个环境ID"
+  }
+]
+```
 
-2. **Service ID 和 Environment ID**:
-   - 打开 Zeabur 控制台
-   - 进入你的项目和服务
-   - 从 URL 中获取：`https://dash.zeabur.com/projects/{PROJECT_ID}/services/{SERVICE_ID}?environmentID={ENVIRONMENT_ID}`
+**字段说明**：
+- `key`: 唯一标识符（不会暴露给前端的 ID）
+- `name`: 显示名称
+- `serviceId`: Zeabur 服务 ID
+- `environmentId`: Zeabur 环境 ID
+
+### 5. 获取 Zeabur ID
+
+1. **API Token**: [Zeabur 开发者设置](https://dash.zeabur.com/account/developer)
+
+2. **Service ID / Environment ID**: 从 URL 获取
+   ```
+   https://dash.zeabur.com/projects/{PROJECT_ID}/services/{SERVICE_ID}?environmentID={ENVIRONMENT_ID}
+   ```
 
 ## 本地开发
 
-### 安装 Wrangler
-
 ```bash
-npm install -g wrangler
-```
+# 创建配置文件
+cp .dev.vars.example .dev.vars
 
-### 配置本地环境变量
+# 编辑 .dev.vars 填入配置
 
-创建 `.dev.vars` 文件：
-
-```
-AUTH_PASSWORD=your_password
-ZEABUR_API_TOKEN=your_token
-ZEABUR_SERVICE_ID=your_service_id
-ZEABUR_ENVIRONMENT_ID=your_environment_id
-```
-
-### 运行本地开发服务器
-
-```bash
+# 运行开发服务器
 npx wrangler pages dev src
 ```
 
-## 项目结构
+## 安全性
 
-```
-├── src/
-│   ├── index.html    # 前端页面
-│   ├── style.css     # 样式
-│   └── app.js        # 前端逻辑
-├── functions/
-│   └── api/
-│       └── [[action]].js  # API 端点
-└── README.md
-```
-
-## 安全说明
-
-- 所有操作都需要输入密码验证
-- 密码存储在 Cloudflare 环境变量中，不会暴露给前端
-- API Token 等敏感信息也存储在环境变量中
-- 建议使用强密码
-
-## API 端点
-
-- `POST /api/restart` - 重启服务
-- `POST /api/start` - 启动服务
-- `POST /api/stop` - 停止服务
-- `POST /api/redeploy` - 重新部署
-
-所有端点需要在请求体中包含 `{ "password": "your_password" }`
+- 所有操作需要密码验证
+- 敏感信息（Token、ID）存储在 Cloudflare 环境变量
+- 前端只能获取服务的 key 和 name
+- serviceId、environmentId 不会暴露给浏览器

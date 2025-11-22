@@ -2,7 +2,6 @@
 
 const ZEABUR_API = 'https://api.zeabur.com/graphql';
 
-// GraphQL mutations for each action
 const mutations = {
     restart: `
         mutation RestartService($serviceId: ObjectID!, $environmentId: ObjectID!) {
@@ -30,7 +29,6 @@ export async function onRequestPost(context) {
     const { request, env, params } = context;
     const action = params.action;
 
-    // CORS headers
     const headers = {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
@@ -46,7 +44,7 @@ export async function onRequestPost(context) {
 
     try {
         const body = await request.json();
-        const { password } = body;
+        const { password, serviceKey } = body;
 
         // Verify password
         if (!password || password !== env.AUTH_PASSWORD) {
@@ -57,10 +55,21 @@ export async function onRequestPost(context) {
         }
 
         // Check required environment variables
-        if (!env.ZEABUR_API_TOKEN || !env.ZEABUR_SERVICE_ID || !env.ZEABUR_ENVIRONMENT_ID) {
+        if (!env.ZEABUR_API_TOKEN || !env.SERVICES) {
             return new Response(
                 JSON.stringify({ success: false, error: '服务配置错误' }),
                 { status: 500, headers }
+            );
+        }
+
+        // Find service by key
+        const services = JSON.parse(env.SERVICES);
+        const service = services.find(s => s.key === serviceKey);
+
+        if (!service) {
+            return new Response(
+                JSON.stringify({ success: false, error: '未找到服务' }),
+                { status: 404, headers }
             );
         }
 
@@ -74,8 +83,8 @@ export async function onRequestPost(context) {
             body: JSON.stringify({
                 query: mutations[action],
                 variables: {
-                    serviceId: env.ZEABUR_SERVICE_ID,
-                    environmentId: env.ZEABUR_ENVIRONMENT_ID,
+                    serviceId: service.serviceId,
+                    environmentId: service.environmentId,
                 }
             }),
         });
@@ -107,7 +116,6 @@ export async function onRequestPost(context) {
     }
 }
 
-// Handle CORS preflight
 export async function onRequestOptions() {
     return new Response(null, {
         headers: {
