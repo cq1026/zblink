@@ -235,6 +235,8 @@ async function executeAction() {
         if (response.ok && result.success) {
             addLog('success', currentServiceName, `${actionNames[currentAction]} successful`);
             closeModal();
+            // Refresh status after action with delay for API to process
+            setTimeout(fetchStatuses, 2000);
         } else {
             errorEl.textContent = result.error || 'Operation failed';
             if (result.error === '密码错误') {
