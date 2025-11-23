@@ -4,6 +4,7 @@ let currentServiceName = null;
 let currentAccount = null;
 let allServices = [];
 let allAccounts = [];
+let serviceStatuses = {};
 
 document.addEventListener('DOMContentLoaded', loadServices);
 
@@ -23,6 +24,8 @@ async function loadServices() {
                 currentAccount = allAccounts[0];
                 renderTabs();
                 renderServices();
+                // Fetch statuses after rendering
+                fetchStatuses();
             } else {
                 tabsContainer.innerHTML = '';
                 container.innerHTML = `
@@ -38,6 +41,43 @@ async function loadServices() {
     } catch (error) {
         container.innerHTML = '<div class="error-state">Network error</div>';
     }
+}
+
+async function fetchStatuses() {
+    try {
+        const response = await fetch('/api/status');
+        const result = await response.json();
+
+        if (result.success) {
+            serviceStatuses = result.statuses || {};
+            updateStatusBadges();
+        }
+    } catch (error) {
+        console.error('Failed to fetch statuses:', error);
+    }
+}
+
+function updateStatusBadges() {
+    document.querySelectorAll('.status-badge').forEach(badge => {
+        const key = badge.dataset.key;
+        const status = serviceStatuses[key] || 'UNKNOWN';
+        badge.textContent = getStatusText(status);
+        badge.className = `status-badge status-${status.toLowerCase()}`;
+    });
+}
+
+function getStatusText(status) {
+    const texts = {
+        'RUNNING': 'Running',
+        'SUSPENDED': 'Stopped',
+        'STARTING': 'Starting',
+        'STOPPING': 'Stopping',
+        'BUILDING': 'Building',
+        'CRASHED': 'Crashed',
+        'PENDING': 'Pending',
+        'UNKNOWN': 'Unknown'
+    };
+    return texts[status] || status;
 }
 
 function renderTabs() {
@@ -105,7 +145,10 @@ function renderServices() {
         <div class="service-card" style="animation-delay: ${index * 0.05}s">
             <div class="service-header">
                 <div class="service-info">
-                    <div class="service-name">${escapeHtml(service.name)}</div>
+                    <div class="service-name-row">
+                        <span class="service-name">${escapeHtml(service.name)}</span>
+                        <span class="status-badge status-unknown" data-key="${escapeHtml(service.key)}">Loading</span>
+                    </div>
                     <div class="service-key">${escapeHtml(service.key)}</div>
                 </div>
                 <div class="service-actions">
