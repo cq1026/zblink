@@ -178,11 +178,63 @@ body {
     min-width: 0;
 }
 
+.service-name-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+
 .service-name {
     font-size: 16px;
     font-weight: 600;
     color: var(--text);
-    margin-bottom: 4px;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.status-running {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.2);
+}
+
+.status-suspended {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--warning);
+}
+
+.status-crashed {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--danger);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.status-building,
+.status-starting,
+.status-stopping {
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--primary);
+}
+
+.status-pending,
+.status-unknown {
+    background: rgba(161, 161, 170, 0.15);
+    color: var(--text-muted);
 }
 
 .service-key {

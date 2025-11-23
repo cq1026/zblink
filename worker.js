@@ -13,6 +13,16 @@ const mutations = {
     `
 };
 
+const queries = {
+    serviceStatus: `
+        query GetServiceStatus($serviceId: ObjectID!, $environmentId: ObjectID!) {
+            service(_id: $serviceId) {
+                status(environmentID: $environmentId)
+            }
+        }
+    `
+};
+
 export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
@@ -30,6 +40,10 @@ export default {
 
         if (path === '/api/services') {
             return handleGetServices(env, corsHeaders);
+        }
+
+        if (path === '/api/status') {
+            return handleGetStatus(env, corsHeaders);
         }
 
         if (path === '/api/restart' || path === '/api/stop') {
@@ -72,6 +86,48 @@ async function handleGetServices(env, headers) {
     } catch (error) {
         console.error('Error parsing services:', error);
         return jsonResponse({ success: false, error: 'Service configuration error' }, 500, headers);
+    }
+}
+
+// Get status for all services
+async function handleGetStatus(env, headers) {
+    try {
+        if (!env.SERVICES) {
+            return jsonResponse({ success: true, statuses: {} }, 200, headers);
+        }
+
+        const config = JSON.parse(env.SERVICES);
+        const statuses = {};
+
+        // Fetch status for each service in parallel
+        const statusPromises = config.services.map(async (service) => {
+            const apiToken = config.accounts[service.account];
+            if (!apiToken) return { key: service.key, status: 'UNKNOWN' };
+
+            try {
+                const result = await callZeaburAPI(apiToken, queries.serviceStatus, {
+                    serviceId: service.serviceId,
+                    environmentId: service.environmentId,
+                });
+
+                return {
+                    key: service.key,
+                    status: result.data?.service?.status || 'UNKNOWN'
+                };
+            } catch (error) {
+                return { key: service.key, status: 'UNKNOWN' };
+            }
+        });
+
+        const results = await Promise.all(statusPromises);
+        results.forEach(r => {
+            statuses[r.key] = r.status;
+        });
+
+        return jsonResponse({ success: true, statuses }, 200, headers);
+    } catch (error) {
+        console.error('Error getting statuses:', error);
+        return jsonResponse({ success: false, error: 'Failed to get statuses' }, 500, headers);
     }
 }
 
