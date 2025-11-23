@@ -115,6 +115,7 @@ function switchAccount(account) {
 
     updateTabIndicator();
     renderServices();
+    updateStatusBadges();
 }
 
 function updateTabIndicator() {
