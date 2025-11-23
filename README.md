@@ -22,13 +22,7 @@ npx wrangler kv:namespace create "KV"
 
 ```bash
 npx wrangler secret put AUTH_PASSWORD
-npx wrangler secret put ZEABUR_API_TOKEN
 npx wrangler secret put SERVICES
-```
-
-`SERVICES` 格式：
-```json
-[{"key":"blog","name":"博客","serviceId":"xxx","environmentId":"xxx"}]
 ```
 
 ### 3. 部署
@@ -42,8 +36,34 @@ npx wrangler deploy
 | 变量名 | 说明 |
 |--------|------|
 | `AUTH_PASSWORD` | 操作密码 |
-| `ZEABUR_API_TOKEN` | Zeabur API Token |
-| `SERVICES` | 服务配置（JSON） |
+| `SERVICES` | 服务配置（JSON，含账号和服务） |
+
+### SERVICES 格式
+
+```json
+{
+  "accounts": {
+    "main": "token1",
+    "friend": "token2"
+  },
+  "services": [
+    {
+      "key": "blog",
+      "name": "博客",
+      "account": "main",
+      "serviceId": "xxx",
+      "environmentId": "xxx"
+    },
+    {
+      "key": "game",
+      "name": "游戏",
+      "account": "friend",
+      "serviceId": "yyy",
+      "environmentId": "yyy"
+    }
+  ]
+}
+```
 
 ## 获取 Zeabur ID
 

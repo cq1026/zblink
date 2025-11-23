@@ -1,18 +1,37 @@
 let currentAction = null;
 let currentServiceKey = null;
 let currentServiceName = null;
+let currentAccount = null;
+let allServices = [];
+let allAccounts = [];
 
 document.addEventListener('DOMContentLoaded', loadServices);
 
 async function loadServices() {
     const container = document.getElementById('services-container');
+    const tabsContainer = document.getElementById('tabs-container');
 
     try {
         const response = await fetch('/api/services');
         const result = await response.json();
 
-        if (result.success && result.services) {
-            renderServices(result.services);
+        if (result.success) {
+            allAccounts = result.accounts || [];
+            allServices = result.services || [];
+
+            if (allAccounts.length > 0) {
+                currentAccount = allAccounts[0];
+                renderTabs();
+                renderServices();
+            } else {
+                tabsContainer.innerHTML = '';
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <span class="empty-icon">📦</span>
+                        <p>No accounts configured</p>
+                    </div>
+                `;
+            }
         } else {
             container.innerHTML = '<div class="error-state">Failed to load services</div>';
         }
@@ -21,21 +40,69 @@ async function loadServices() {
     }
 }
 
-function renderServices(services) {
+function renderTabs() {
+    const tabsContainer = document.getElementById('tabs-container');
+
+    if (allAccounts.length <= 1) {
+        tabsContainer.innerHTML = '';
+        return;
+    }
+
+    tabsContainer.innerHTML = `
+        <div class="tabs">
+            ${allAccounts.map(account => `
+                <button class="tab ${account === currentAccount ? 'active' : ''}"
+                        onclick="switchAccount('${escapeHtml(account)}')">
+                    ${escapeHtml(account)}
+                </button>
+            `).join('')}
+            <div class="tab-indicator" id="tab-indicator"></div>
+        </div>
+    `;
+
+    updateTabIndicator();
+}
+
+function switchAccount(account) {
+    if (account === currentAccount) return;
+
+    currentAccount = account;
+
+    // Update tab active state
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.toggle('active', tab.textContent.trim() === account);
+    });
+
+    updateTabIndicator();
+    renderServices();
+}
+
+function updateTabIndicator() {
+    const activeTab = document.querySelector('.tab.active');
+    const indicator = document.getElementById('tab-indicator');
+
+    if (activeTab && indicator) {
+        indicator.style.width = `${activeTab.offsetWidth}px`;
+        indicator.style.left = `${activeTab.offsetLeft}px`;
+    }
+}
+
+function renderServices() {
     const container = document.getElementById('services-container');
+    const services = allServices.filter(s => s.account === currentAccount);
 
     if (services.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
                 <span class="empty-icon">📦</span>
-                <p>No services configured</p>
+                <p>No services in this account</p>
             </div>
         `;
         return;
     }
 
-    container.innerHTML = services.map(service => `
-        <div class="service-card">
+    container.innerHTML = services.map((service, index) => `
+        <div class="service-card" style="animation-delay: ${index * 0.05}s">
             <div class="service-header">
                 <div class="service-info">
                     <div class="service-name">${escapeHtml(service.name)}</div>
@@ -197,3 +264,6 @@ document.addEventListener('keydown', (e) => {
         closeModal();
     }
 });
+
+// Update tab indicator on window resize
+window.addEventListener('resize', updateTabIndicator);

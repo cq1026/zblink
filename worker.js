@@ -14,24 +14,20 @@ const mutations = {
 };
 
 export default {
-    // Handle HTTP requests
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
         const path = url.pathname;
 
-        // CORS headers
         const corsHeaders = {
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
             'Access-Control-Allow-Headers': 'Content-Type',
         };
 
-        // Handle CORS preflight
         if (request.method === 'OPTIONS') {
             return new Response(null, { headers: corsHeaders });
         }
 
-        // API routes
         if (path === '/api/services') {
             return handleGetServices(env, corsHeaders);
         }
@@ -41,33 +37,40 @@ export default {
             return handleAction(request, env, action, corsHeaders);
         }
 
-        // Let assets handler serve static files
         return env.ASSETS.fetch(request);
     },
 
-    // Handle scheduled cron trigger
     async scheduled(event, env, ctx) {
         console.log('Cron triggered: checking for services to keepalive');
         await checkKeepalive(env);
     }
 };
 
-// Get services list (public info only)
+// Get services list grouped by account
 async function handleGetServices(env, headers) {
     try {
         const servicesConfig = env.SERVICES;
         if (!servicesConfig) {
-            return jsonResponse({ success: true, services: [] }, 200, headers);
+            return jsonResponse({ success: true, accounts: [], services: [] }, 200, headers);
         }
 
-        const services = JSON.parse(servicesConfig);
-        const publicServices = services.map(s => ({
+        const config = JSON.parse(servicesConfig);
+
+        // Return account names and services (without tokens)
+        const accountNames = Object.keys(config.accounts || {});
+        const services = (config.services || []).map(s => ({
             key: s.key,
-            name: s.name
+            name: s.name,
+            account: s.account
         }));
 
-        return jsonResponse({ success: true, services: publicServices }, 200, headers);
+        return jsonResponse({
+            success: true,
+            accounts: accountNames,
+            services: services
+        }, 200, headers);
     } catch (error) {
+        console.error('Error parsing services:', error);
         return jsonResponse({ success: false, error: 'Service configuration error' }, 500, headers);
     }
 }
@@ -82,26 +85,28 @@ async function handleAction(request, env, action, headers) {
         const body = await request.json();
         const { password, serviceKey } = body;
 
-        // Verify password
         if (!password || password !== env.AUTH_PASSWORD) {
             return jsonResponse({ success: false, error: '密码错误' }, 401, headers);
         }
 
-        // Check config
-        if (!env.ZEABUR_API_TOKEN || !env.SERVICES) {
+        if (!env.SERVICES) {
             return jsonResponse({ success: false, error: 'Service configuration error' }, 500, headers);
         }
 
-        // Find service
-        const services = JSON.parse(env.SERVICES);
-        const service = services.find(s => s.key === serviceKey);
+        const config = JSON.parse(env.SERVICES);
+        const service = config.services.find(s => s.key === serviceKey);
 
         if (!service) {
             return jsonResponse({ success: false, error: 'Service not found' }, 404, headers);
         }
 
-        // Execute action
-        const result = await callZeaburAPI(env, mutations[action], {
+        // Get token for this service's account
+        const apiToken = config.accounts[service.account];
+        if (!apiToken) {
+            return jsonResponse({ success: false, error: 'Account token not found' }, 500, headers);
+        }
+
+        const result = await callZeaburAPI(apiToken, mutations[action], {
             serviceId: service.serviceId,
             environmentId: service.environmentId,
         });
@@ -114,7 +119,6 @@ async function handleAction(request, env, action, headers) {
         if (action === 'stop') {
             await env.KV.put(`stopped:${serviceKey}`, Date.now().toString());
         } else if (action === 'restart') {
-            // Clear stop time on manual restart
             await env.KV.delete(`stopped:${serviceKey}`);
         }
 
@@ -126,18 +130,18 @@ async function handleAction(request, env, action, headers) {
     }
 }
 
-// Check and keepalive services that have been stopped for too long
+// Check and keepalive services
 async function checkKeepalive(env) {
-    if (!env.SERVICES || !env.ZEABUR_API_TOKEN) {
+    if (!env.SERVICES) {
         console.log('Missing configuration, skipping keepalive check');
         return;
     }
 
-    const services = JSON.parse(env.SERVICES);
+    const config = JSON.parse(env.SERVICES);
     const KEEPALIVE_DAYS = 20;
     const now = Date.now();
 
-    for (const service of services) {
+    for (const service of config.services) {
         const stoppedTime = await env.KV.get(`stopped:${service.key}`);
 
         if (!stoppedTime) continue;
@@ -147,27 +151,27 @@ async function checkKeepalive(env) {
         if (daysStopped >= KEEPALIVE_DAYS) {
             console.log(`Keepalive: ${service.name} has been stopped for ${Math.floor(daysStopped)} days`);
 
+            const apiToken = config.accounts[service.account];
+            if (!apiToken) {
+                console.error(`No token found for account: ${service.account}`);
+                continue;
+            }
+
             try {
-                // Restart service
-                await callZeaburAPI(env, mutations.restart, {
+                await callZeaburAPI(apiToken, mutations.restart, {
                     serviceId: service.serviceId,
                     environmentId: service.environmentId,
                 });
 
                 console.log(`Restarted: ${service.name}`);
-
-                // Wait 30 seconds for service to start
                 await sleep(30000);
 
-                // Stop service again
-                await callZeaburAPI(env, mutations.stop, {
+                await callZeaburAPI(apiToken, mutations.stop, {
                     serviceId: service.serviceId,
                     environmentId: service.environmentId,
                 });
 
                 console.log(`Stopped again: ${service.name}`);
-
-                // Update stop time
                 await env.KV.put(`stopped:${service.key}`, Date.now().toString());
 
             } catch (error) {
@@ -178,11 +182,11 @@ async function checkKeepalive(env) {
 }
 
 // Call Zeabur GraphQL API
-async function callZeaburAPI(env, query, variables) {
+async function callZeaburAPI(token, query, variables) {
     const response = await fetch(ZEABUR_API, {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${env.ZEABUR_API_TOKEN}`,
+            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({ query, variables }),
@@ -191,7 +195,6 @@ async function callZeaburAPI(env, query, variables) {
     return response.json();
 }
 
-// Helper functions
 function jsonResponse(data, status, headers) {
     return new Response(JSON.stringify(data), {
         status,

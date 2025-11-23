@@ -1,5 +1,4 @@
 # Copy to .dev.vars for local development
 
 AUTH_PASSWORD=your_password
-ZEABUR_API_TOKEN=your_token
-SERVICES=[{"key":"blog","name":"博客","serviceId":"xxx","environmentId":"xxx"}]
+SERVICES={"accounts":{"main":"token1","friend":"token2"},"services":[{"key":"blog","name":"博客","account":"main","serviceId":"xxx","environmentId":"xxx"},{"key":"game","name":"游戏","account":"friend","serviceId":"yyy","environmentId":"yyy"}]}
