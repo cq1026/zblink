@@ -171,11 +171,13 @@ async function handleAction(request, env, action, headers) {
             return jsonResponse({ success: false, error: result.errors[0]?.message || 'API call failed' }, 500, headers);
         }
 
-        // Record stop time for keepalive
-        if (action === 'stop') {
-            await env.KV.put(`stopped:${serviceKey}`, Date.now().toString());
-        } else if (action === 'restart') {
-            await env.KV.delete(`stopped:${serviceKey}`);
+        // Record stop time for keepalive (only if KV is bound)
+        if (env.KV) {
+            if (action === 'stop') {
+                await env.KV.put(`stopped:${serviceKey}`, Date.now().toString());
+            } else if (action === 'restart') {
+                await env.KV.delete(`stopped:${serviceKey}`);
+            }
         }
 
         return jsonResponse({ success: true, data: result.data }, 200, headers);
@@ -188,8 +190,8 @@ async function handleAction(request, env, action, headers) {
 
 // Check and keepalive services
 async function checkKeepalive(env) {
-    if (!env.SERVICES) {
-        console.log('Missing configuration, skipping keepalive check');
+    if (!env.SERVICES || !env.KV) {
+        console.log('Missing configuration or KV binding, skipping keepalive check');
         return;
     }
 
