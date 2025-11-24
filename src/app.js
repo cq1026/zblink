@@ -70,6 +70,22 @@ async function refreshStatuses() {
     }, 500);
 }
 
+// Poll status until it reaches a stable state (RUNNING or SUSPENDED)
+async function pollStatusUntilStable(serviceKey) {
+    const maxAttempts = 6;
+    const interval = 3000; // 3 seconds
+
+    for (let i = 0; i < maxAttempts; i++) {
+        await new Promise(resolve => setTimeout(resolve, interval));
+        await fetchStatuses();
+
+        const status = serviceStatuses[serviceKey];
+        if (status === 'RUNNING' || status === 'SUSPENDED') {
+            break;
+        }
+    }
+}
+
 function updateStatusBadges() {
     document.querySelectorAll('.status-badge').forEach(badge => {
         const key = badge.dataset.key;
@@ -248,8 +264,8 @@ async function executeAction() {
         if (response.ok && result.success) {
             addLog('success', currentServiceName, `${actionNames[currentAction]} successful`);
             closeModal();
-            // Refresh status after action with delay for API to process
-            setTimeout(fetchStatuses, 2000);
+            // Poll status multiple times until stable
+            pollStatusUntilStable(currentServiceKey);
         } else {
             errorEl.textContent = result.error || 'Operation failed';
             if (result.error === '密码错误') {
