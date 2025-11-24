@@ -57,6 +57,19 @@ async function fetchStatuses() {
     }
 }
 
+async function refreshStatuses() {
+    const btn = document.querySelector('.btn-refresh');
+    btn.classList.add('spinning');
+    btn.disabled = true;
+
+    await fetchStatuses();
+
+    setTimeout(() => {
+        btn.classList.remove('spinning');
+        btn.disabled = false;
+    }, 500);
+}
+
 function updateStatusBadges() {
     document.querySelectorAll('.status-badge').forEach(badge => {
         const key = badge.dataset.key;
