@@ -273,7 +273,7 @@ body {
     color: var(--text-muted);
 }
 
-.service-key {
+.service-account {
     font-size: 12px;
     color: var(--text-muted);
     font-family: 'SF Mono', Monaco, monospace;
@@ -339,6 +339,20 @@ body {
 .btn-stop:hover {
     background: var(--danger);
     border-color: var(--danger);
+}
+
+.btn-delete {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    padding: 8px 12px;
+}
+
+.btn-delete:hover {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: white;
 }
 
 .btn-primary {
@@ -576,6 +590,14 @@ body {
 
 .input-group {
     margin-bottom: 24px;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
 }
 
 .input-group input {
