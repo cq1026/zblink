@@ -338,6 +338,8 @@ document.getElementById('password-modal').addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         closeModal();
+        closeDeleteModal();
+        closeAddServiceModal();
     }
 });
 
@@ -345,18 +347,38 @@ document.addEventListener('keydown', (e) => {
 window.addEventListener('resize', updateTabIndicator);
 
 // Delete service
+let deleteServiceName = null;
+
 function confirmDelete(serviceName) {
-    if (!confirm(`Are you sure you want to delete "${serviceName}"?`)) {
+    deleteServiceName = serviceName;
+    document.getElementById('delete-message').textContent = `Are you sure you want to delete "${serviceName}"?`;
+    document.getElementById('delete-password').value = '';
+    document.getElementById('delete-error').textContent = '';
+    document.getElementById('delete-modal').style.display = 'flex';
+    setTimeout(() => {
+        document.getElementById('delete-password').focus();
+    }, 100);
+}
+
+function closeDeleteModal() {
+    document.getElementById('delete-modal').style.display = 'none';
+    deleteServiceName = null;
+}
+
+async function executeDelete() {
+    const password = document.getElementById('delete-password').value;
+    const errorEl = document.getElementById('delete-error');
+    const deleteBtn = document.getElementById('delete-btn');
+
+    if (!password) {
+        errorEl.textContent = 'Please enter password';
         return;
     }
 
-    const password = prompt('Enter password to confirm:');
-    if (!password) return;
+    deleteBtn.classList.add('loading');
+    deleteBtn.disabled = true;
+    errorEl.textContent = '';
 
-    deleteService(serviceName, password);
-}
-
-async function deleteService(serviceName, password) {
     try {
         const response = await fetch('/api/config/delete', {
             method: 'POST',
@@ -365,23 +387,53 @@ async function deleteService(serviceName, password) {
             },
             body: JSON.stringify({
                 password,
-                serviceName
+                serviceName: deleteServiceName
             }),
         });
 
         const result = await response.json();
 
         if (response.ok && result.success) {
-            addLog('success', serviceName, 'Service deleted');
+            addLog('success', deleteServiceName, 'Service deleted');
+            closeDeleteModal();
             // Reload services
             await loadServices();
         } else {
-            alert(result.error || 'Delete failed');
+            errorEl.textContent = result.error || 'Delete failed';
+            if (result.error === '密码错误') {
+                errorEl.textContent = 'Invalid password';
+                document.getElementById('delete-password').value = '';
+                document.getElementById('delete-password').focus();
+            }
         }
     } catch (error) {
-        alert('Network error');
+        errorEl.textContent = 'Network error';
+    } finally {
+        deleteBtn.classList.remove('loading');
+        deleteBtn.disabled = false;
     }
 }
+
+// Delete modal keyboard events
+document.addEventListener('DOMContentLoaded', () => {
+    const deletePasswordInput = document.getElementById('delete-password');
+    if (deletePasswordInput) {
+        deletePasswordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                executeDelete();
+            }
+        });
+    }
+
+    const deleteModal = document.getElementById('delete-modal');
+    if (deleteModal) {
+        deleteModal.addEventListener('click', (e) => {
+            if (e.target.id === 'delete-modal') {
+                closeDeleteModal();
+            }
+        });
+    }
+});
 
 // Add service modal
 function openAddServiceModal() {
