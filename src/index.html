@@ -17,11 +17,16 @@
                 <span class="logo-icon">Z</span>
                 <span class="logo-text">Zeabur Manager</span>
             </div>
-            <button class="btn-refresh" onclick="refreshStatuses()" title="Refresh status">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 12a9 9 0 11-2.2-5.9M21 3v6h-6"/>
-                </svg>
-            </button>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button class="btn btn-primary" onclick="openAddServiceModal()" style="padding: 8px 16px; font-size: 13px;">
+                    + Add Service
+                </button>
+                <button class="btn-refresh" onclick="refreshStatuses()" title="Refresh status">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12a9 9 0 11-2.2-5.9M21 3v6h-6"/>
+                    </svg>
+                </button>
+            </div>
         </nav>
 
         <main class="main">
@@ -67,6 +72,42 @@
             <div class="modal-actions">
                 <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
                 <button class="btn btn-primary" id="confirm-btn" onclick="executeAction()">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Service Modal -->
+    <div id="add-service-modal" class="modal-overlay" style="display: none;">
+        <div class="modal" style="max-width: 500px;">
+            <h3>Add New Service</h3>
+            <div class="input-group">
+                <label for="add-name">Service Name</label>
+                <input type="text" id="add-name" placeholder="My Service">
+            </div>
+            <div class="input-group">
+                <label for="add-account">Account Name</label>
+                <input type="text" id="add-account" placeholder="Personal">
+            </div>
+            <div class="input-group">
+                <label for="add-token">Zeabur API Token</label>
+                <input type="password" id="add-token" placeholder="zeabur_...">
+            </div>
+            <div class="input-group">
+                <label for="add-serviceid">Service ID</label>
+                <input type="text" id="add-serviceid" placeholder="service_id">
+            </div>
+            <div class="input-group">
+                <label for="add-envid">Environment ID</label>
+                <input type="text" id="add-envid" placeholder="env_id">
+            </div>
+            <div class="input-group">
+                <label for="add-password">Password</label>
+                <input type="password" id="add-password" placeholder="Enter your password">
+                <p id="add-error" class="error-text"></p>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeAddServiceModal()">Cancel</button>
+                <button class="btn btn-primary" id="add-btn" onclick="addService()">Add Service</button>
             </div>
         </div>
     </div>

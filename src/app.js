@@ -1,5 +1,4 @@
 let currentAction = null;
-let currentServiceKey = null;
 let currentServiceName = null;
 let currentAccount = null;
 let allServices = [];
@@ -71,7 +70,7 @@ async function refreshStatuses() {
 }
 
 // Poll status until it reaches a stable state (RUNNING or SUSPENDED)
-async function pollStatusUntilStable(serviceKey) {
+async function pollStatusUntilStable(serviceName) {
     const maxAttempts = 6;
     const interval = 3000; // 3 seconds
 
@@ -79,7 +78,7 @@ async function pollStatusUntilStable(serviceKey) {
         await new Promise(resolve => setTimeout(resolve, interval));
         await fetchStatuses();
 
-        const status = serviceStatuses[serviceKey];
+        const status = serviceStatuses[serviceName];
         if (status === 'RUNNING' || status === 'SUSPENDED') {
             break;
         }
@@ -88,8 +87,8 @@ async function pollStatusUntilStable(serviceKey) {
 
 function updateStatusBadges() {
     document.querySelectorAll('.status-badge').forEach(badge => {
-        const key = badge.dataset.key;
-        const status = serviceStatuses[key] || 'UNKNOWN';
+        const name = badge.dataset.name;
+        const status = serviceStatuses[name] || 'UNKNOWN';
         badge.textContent = getStatusText(status);
         badge.className = `status-badge status-${status.toLowerCase()}`;
     });
@@ -177,16 +176,19 @@ function renderServices() {
                 <div class="service-info">
                     <div class="service-name-row">
                         <span class="service-name">${escapeHtml(service.name)}</span>
-                        <span class="status-badge status-unknown" data-key="${escapeHtml(service.key)}">Loading</span>
+                        <span class="status-badge status-unknown" data-name="${escapeHtml(service.name)}">Loading</span>
                     </div>
-                    <div class="service-key">${escapeHtml(service.key)}</div>
+                    <div class="service-account">${escapeHtml(service.account)}</div>
                 </div>
                 <div class="service-actions">
-                    <button class="btn btn-restart" onclick="confirmAction('restart', '${escapeHtml(service.key)}', '${escapeHtml(service.name)}')">
+                    <button class="btn btn-restart" onclick="confirmAction('restart', '${escapeHtml(service.name)}')">
                         Restart
                     </button>
-                    <button class="btn btn-stop" onclick="confirmAction('stop', '${escapeHtml(service.key)}', '${escapeHtml(service.name)}')">
+                    <button class="btn btn-stop" onclick="confirmAction('stop', '${escapeHtml(service.name)}')">
                         Stop
+                    </button>
+                    <button class="btn btn-delete" onclick="confirmDelete('${escapeHtml(service.name)}')">
+                        Delete
                     </button>
                 </div>
             </div>
@@ -200,9 +202,8 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-function confirmAction(action, serviceKey, serviceName) {
+function confirmAction(action, serviceName) {
     currentAction = action;
-    currentServiceKey = serviceKey;
     currentServiceName = serviceName;
 
     const actionNames = {
@@ -255,7 +256,7 @@ async function executeAction() {
             },
             body: JSON.stringify({
                 password,
-                serviceKey: currentServiceKey
+                serviceName: currentServiceName
             }),
         });
 
@@ -265,7 +266,7 @@ async function executeAction() {
             addLog('success', currentServiceName, `${actionNames[currentAction]} successful`);
             closeModal();
             // Poll status multiple times until stable
-            pollStatusUntilStable(currentServiceKey);
+            pollStatusUntilStable(currentServiceName);
         } else {
             errorEl.textContent = result.error || 'Operation failed';
             if (result.error === '密码错误') {
@@ -342,3 +343,116 @@ document.addEventListener('keydown', (e) => {
 
 // Update tab indicator on window resize
 window.addEventListener('resize', updateTabIndicator);
+
+// Delete service
+function confirmDelete(serviceName) {
+    if (!confirm(`Are you sure you want to delete "${serviceName}"?`)) {
+        return;
+    }
+
+    const password = prompt('Enter password to confirm:');
+    if (!password) return;
+
+    deleteService(serviceName, password);
+}
+
+async function deleteService(serviceName, password) {
+    try {
+        const response = await fetch('/api/config/delete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                password,
+                serviceName
+            }),
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            addLog('success', serviceName, 'Service deleted');
+            // Reload services
+            await loadServices();
+        } else {
+            alert(result.error || 'Delete failed');
+        }
+    } catch (error) {
+        alert('Network error');
+    }
+}
+
+// Add service modal
+function openAddServiceModal() {
+    document.getElementById('add-service-modal').style.display = 'flex';
+    document.getElementById('add-name').focus();
+}
+
+function closeAddServiceModal() {
+    document.getElementById('add-service-modal').style.display = 'none';
+    // Clear form
+    document.getElementById('add-name').value = '';
+    document.getElementById('add-account').value = '';
+    document.getElementById('add-token').value = '';
+    document.getElementById('add-serviceid').value = '';
+    document.getElementById('add-envid').value = '';
+    document.getElementById('add-password').value = '';
+    document.getElementById('add-error').textContent = '';
+}
+
+async function addService() {
+    const name = document.getElementById('add-name').value.trim();
+    const account = document.getElementById('add-account').value.trim();
+    const token = document.getElementById('add-token').value.trim();
+    const serviceId = document.getElementById('add-serviceid').value.trim();
+    const environmentId = document.getElementById('add-envid').value.trim();
+    const password = document.getElementById('add-password').value;
+    const errorEl = document.getElementById('add-error');
+    const addBtn = document.getElementById('add-btn');
+
+    if (!name || !account || !token || !serviceId || !environmentId || !password) {
+        errorEl.textContent = 'All fields are required';
+        return;
+    }
+
+    addBtn.classList.add('loading');
+    addBtn.disabled = true;
+    errorEl.textContent = '';
+
+    try {
+        const response = await fetch('/api/config/add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                password,
+                name,
+                account,
+                token,
+                serviceId,
+                environmentId
+            }),
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+            addLog('success', name, 'Service added');
+            closeAddServiceModal();
+            // Reload services
+            await loadServices();
+        } else {
+            errorEl.textContent = result.error || 'Add failed';
+            if (result.error === '密码错误') {
+                errorEl.textContent = 'Invalid password';
+            }
+        }
+    } catch (error) {
+        errorEl.textContent = 'Network error';
+    } finally {
+        addBtn.classList.remove('loading');
+        addBtn.disabled = false;
+    }
+}

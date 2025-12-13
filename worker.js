@@ -30,7 +30,7 @@ export default {
 
         const corsHeaders = {
             'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, DELETE',
             'Access-Control-Allow-Headers': 'Content-Type',
         };
 
@@ -51,6 +51,14 @@ export default {
             return handleAction(request, env, action, corsHeaders);
         }
 
+        if (path === '/api/config/add') {
+            return handleAddService(request, env, corsHeaders);
+        }
+
+        if (path === '/api/config/delete') {
+            return handleDeleteService(request, env, corsHeaders);
+        }
+
         return env.ASSETS.fetch(request);
     },
 
@@ -63,17 +71,13 @@ export default {
 // Get services list grouped by account
 async function handleGetServices(env, headers) {
     try {
-        const servicesConfig = env.SERVICES;
-        if (!servicesConfig) {
-            return jsonResponse({ success: true, accounts: [], services: [] }, 200, headers);
-        }
+        const config = await getConfig(env);
 
-        const config = JSON.parse(servicesConfig);
+        // Get unique account names
+        const accountNames = [...new Set(config.services.map(s => s.account))];
 
         // Return account names and services (without tokens)
-        const accountNames = Object.keys(config.accounts || {});
-        const services = (config.services || []).map(s => ({
-            key: s.key,
+        const services = config.services.map(s => ({
             name: s.name,
             account: s.account
         }));
@@ -84,7 +88,7 @@ async function handleGetServices(env, headers) {
             services: services
         }, 200, headers);
     } catch (error) {
-        console.error('Error parsing services:', error);
+        console.error('Error getting services:', error);
         return jsonResponse({ success: false, error: 'Service configuration error' }, 500, headers);
     }
 }
@@ -92,36 +96,31 @@ async function handleGetServices(env, headers) {
 // Get status for all services
 async function handleGetStatus(env, headers) {
     try {
-        if (!env.SERVICES) {
-            return jsonResponse({ success: true, statuses: {} }, 200, headers);
-        }
-
-        const config = JSON.parse(env.SERVICES);
+        const config = await getConfig(env);
         const statuses = {};
 
         // Fetch status for each service in parallel
         const statusPromises = config.services.map(async (service) => {
-            const apiToken = config.accounts[service.account];
-            if (!apiToken) return { key: service.key, status: 'UNKNOWN' };
+            if (!service.token) return { name: service.name, status: 'UNKNOWN' };
 
             try {
-                const result = await callZeaburAPI(apiToken, queries.serviceStatus, {
+                const result = await callZeaburAPI(service.token, queries.serviceStatus, {
                     serviceId: service.serviceId,
                     environmentId: service.environmentId,
                 });
 
                 return {
-                    key: service.key,
+                    name: service.name,
                     status: result.data?.service?.status || 'UNKNOWN'
                 };
             } catch (error) {
-                return { key: service.key, status: 'UNKNOWN' };
+                return { name: service.name, status: 'UNKNOWN' };
             }
         });
 
         const results = await Promise.all(statusPromises);
         results.forEach(r => {
-            statuses[r.key] = r.status;
+            statuses[r.name] = r.status;
         });
 
         return jsonResponse({ success: true, statuses }, 200, headers);
@@ -139,30 +138,24 @@ async function handleAction(request, env, action, headers) {
 
     try {
         const body = await request.json();
-        const { password, serviceKey } = body;
+        const { password, serviceName } = body;
 
         if (!password || password !== env.AUTH_PASSWORD) {
             return jsonResponse({ success: false, error: '密码错误' }, 401, headers);
         }
 
-        if (!env.SERVICES) {
-            return jsonResponse({ success: false, error: 'Service configuration error' }, 500, headers);
-        }
-
-        const config = JSON.parse(env.SERVICES);
-        const service = config.services.find(s => s.key === serviceKey);
+        const config = await getConfig(env);
+        const service = config.services.find(s => s.name === serviceName);
 
         if (!service) {
             return jsonResponse({ success: false, error: 'Service not found' }, 404, headers);
         }
 
-        // Get token for this service's account
-        const apiToken = config.accounts[service.account];
-        if (!apiToken) {
-            return jsonResponse({ success: false, error: 'Account token not found' }, 500, headers);
+        if (!service.token) {
+            return jsonResponse({ success: false, error: 'Service token not configured' }, 500, headers);
         }
 
-        const result = await callZeaburAPI(apiToken, mutations[action], {
+        const result = await callZeaburAPI(service.token, mutations[action], {
             serviceId: service.serviceId,
             environmentId: service.environmentId,
         });
@@ -172,10 +165,12 @@ async function handleAction(request, env, action, headers) {
         }
 
         // Record stop time for keepalive
-        if (action === 'stop') {
-            await env.KV.put(`stopped:${serviceKey}`, Date.now().toString());
-        } else if (action === 'restart') {
-            await env.KV.delete(`stopped:${serviceKey}`);
+        if (env.KV) {
+            if (action === 'stop') {
+                await env.KV.put(`stopped:${serviceName}`, Date.now().toString());
+            } else if (action === 'restart') {
+                await env.KV.delete(`stopped:${serviceName}`);
+            }
         }
 
         return jsonResponse({ success: true, data: result.data }, 200, headers);
@@ -188,52 +183,55 @@ async function handleAction(request, env, action, headers) {
 
 // Check and keepalive services
 async function checkKeepalive(env) {
-    if (!env.SERVICES) {
-        console.log('Missing configuration, skipping keepalive check');
+    if (!env.KV) {
+        console.log('KV not configured, skipping keepalive check');
         return;
     }
 
-    const config = JSON.parse(env.SERVICES);
-    const KEEPALIVE_DAYS = 20;
-    const now = Date.now();
+    try {
+        const config = await getConfig(env);
+        const KEEPALIVE_DAYS = 20;
+        const now = Date.now();
 
-    for (const service of config.services) {
-        const stoppedTime = await env.KV.get(`stopped:${service.key}`);
+        for (const service of config.services) {
+            const stoppedTime = await env.KV.get(`stopped:${service.name}`);
 
-        if (!stoppedTime) continue;
+            if (!stoppedTime) continue;
 
-        const daysStopped = (now - parseInt(stoppedTime)) / (1000 * 60 * 60 * 24);
+            const daysStopped = (now - parseInt(stoppedTime)) / (1000 * 60 * 60 * 24);
 
-        if (daysStopped >= KEEPALIVE_DAYS) {
-            console.log(`Keepalive: ${service.name} has been stopped for ${Math.floor(daysStopped)} days`);
+            if (daysStopped >= KEEPALIVE_DAYS) {
+                console.log(`Keepalive: ${service.name} has been stopped for ${Math.floor(daysStopped)} days`);
 
-            const apiToken = config.accounts[service.account];
-            if (!apiToken) {
-                console.error(`No token found for account: ${service.account}`);
-                continue;
-            }
+                if (!service.token) {
+                    console.error(`No token found for service: ${service.name}`);
+                    continue;
+                }
 
-            try {
-                await callZeaburAPI(apiToken, mutations.restart, {
-                    serviceId: service.serviceId,
-                    environmentId: service.environmentId,
-                });
+                try {
+                    await callZeaburAPI(service.token, mutations.restart, {
+                        serviceId: service.serviceId,
+                        environmentId: service.environmentId,
+                    });
 
-                console.log(`Restarted: ${service.name}`);
-                await sleep(30000);
+                    console.log(`Restarted: ${service.name}`);
+                    await sleep(30000);
 
-                await callZeaburAPI(apiToken, mutations.stop, {
-                    serviceId: service.serviceId,
-                    environmentId: service.environmentId,
-                });
+                    await callZeaburAPI(service.token, mutations.stop, {
+                        serviceId: service.serviceId,
+                        environmentId: service.environmentId,
+                    });
 
-                console.log(`Stopped again: ${service.name}`);
-                await env.KV.put(`stopped:${service.key}`, Date.now().toString());
+                    console.log(`Stopped again: ${service.name}`);
+                    await env.KV.put(`stopped:${service.name}`, Date.now().toString());
 
-            } catch (error) {
-                console.error(`Keepalive failed for ${service.name}:`, error);
+                } catch (error) {
+                    console.error(`Keepalive failed for ${service.name}:`, error);
+                }
             }
         }
+    } catch (error) {
+        console.error('Error in keepalive check:', error);
     }
 }
 
@@ -260,4 +258,112 @@ function jsonResponse(data, status, headers) {
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Get configuration from KV or fallback to env
+async function getConfig(env) {
+    if (!env.KV) {
+        // Fallback to environment variable (backward compatibility)
+        if (!env.SERVICES) {
+            return { services: [] };
+        }
+        const oldConfig = JSON.parse(env.SERVICES);
+        // Convert old format to new format
+        return {
+            services: (oldConfig.services || []).map(s => ({
+                name: s.name,
+                account: s.account,
+                token: oldConfig.accounts?.[s.account] || '',
+                serviceId: s.serviceId,
+                environmentId: s.environmentId
+            }))
+        };
+    }
+
+    const configData = await env.KV.get('services_config');
+    if (!configData) {
+        return { services: [] };
+    }
+
+    return JSON.parse(configData);
+}
+
+// Save configuration to KV
+async function saveConfig(env, config) {
+    if (!env.KV) {
+        throw new Error('KV binding not configured');
+    }
+    await env.KV.put('services_config', JSON.stringify(config));
+}
+
+// Add a new service
+async function handleAddService(request, env, headers) {
+    try {
+        const body = await request.json();
+        const { password, name, account, token, serviceId, environmentId } = body;
+
+        if (!password || password !== env.AUTH_PASSWORD) {
+            return jsonResponse({ success: false, error: '密码错误' }, 401, headers);
+        }
+
+        if (!name || !account || !token || !serviceId || !environmentId) {
+            return jsonResponse({ success: false, error: 'All fields are required' }, 400, headers);
+        }
+
+        const config = await getConfig(env);
+
+        // Check if service with same name already exists
+        if (config.services.some(s => s.name === name)) {
+            return jsonResponse({ success: false, error: 'Service with this name already exists' }, 400, headers);
+        }
+
+        // Add new service
+        config.services.push({
+            name,
+            account,
+            token,
+            serviceId,
+            environmentId
+        });
+
+        await saveConfig(env, config);
+
+        return jsonResponse({ success: true }, 200, headers);
+    } catch (error) {
+        console.error('Error adding service:', error);
+        return jsonResponse({ success: false, error: 'Server error' }, 500, headers);
+    }
+}
+
+// Delete a service
+async function handleDeleteService(request, env, headers) {
+    try {
+        const body = await request.json();
+        const { password, serviceName } = body;
+
+        if (!password || password !== env.AUTH_PASSWORD) {
+            return jsonResponse({ success: false, error: '密码错误' }, 401, headers);
+        }
+
+        const config = await getConfig(env);
+
+        const initialLength = config.services.length;
+        config.services = config.services.filter(s => s.name !== serviceName);
+
+        if (config.services.length === initialLength) {
+            return jsonResponse({ success: false, error: 'Service not found' }, 404, headers);
+        }
+
+        await saveConfig(env, config);
+
+        // Also delete stopped status from KV
+        if (env.KV) {
+            await env.KV.delete(`stopped:${serviceName}`);
+        }
+
+        return jsonResponse({ success: true }, 200, headers);
+    } catch (error) {
+        console.error('Error deleting service:', error);
+        return jsonResponse({ success: false, error: 'Server error' }, 500, headers);
+    }
 }
